@@ -79,7 +79,7 @@
                         <i data-lucide="scan-barcode" class="w-5 h-5 text-white"></i>
                     </div>
                     <h2 class="text-xl font-bold mb-2">Uzman Etiket Analizi</h2>
-                    <p class="text-sm text-purple-100 leading-relaxed">Paketli gıdaların fotoğrafını çekin. Katkı maddelerini, gizli alerjenleri ve besin profilini basitçe raporlayalım.</p>
+                    <p class="text-sm text-purple-100 leading-relaxed">Paketli gıdaların fotoğrafını çekin. Katkı maddelerini, gizli alerjenleri ve internetteki yorumları özetleyelim.</p>
                 </div>
             </div>
 
@@ -412,7 +412,7 @@
 
     <!-- JS MANTIĞI -->
     <script>
-        const apiKey = ""; 
+        const apiKey = "AQ.Ab8RN6Jf-RaY9_l5zdqfWRyvlVJrZvB3NmHfBkzl4yZ5oAylZg"; 
 
         // STATE
         const state = {
@@ -572,7 +572,7 @@
             lucide.createIcons();
         }
 
-        // --- YENİ: ÜRÜN ETİKET ANALİZİ MANTIĞI (İnternet Aramalı) ---
+        // --- ÜRÜN ETİKET ANALİZİ MANTIĞI (İnternet Aramalı) ---
         function handleProductUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -601,7 +601,7 @@
             lucide.createIcons();
 
             try {
-                if(!state.productScanData.base64) {
+                if(!apiKey || !state.productScanData.base64) {
                     showToast("Hata: Fotoğraf gerekli.");
                     btn.innerText = 'Raporla';
                     btn.disabled = false;
@@ -609,14 +609,14 @@
                 }
 
                 const systemPrompt = `Sen bir gıda uzmanı ve beslenme danışmanısın. Kullanıcının paylaştığı ürün etiket fotoğrafını GÖZÜNLE İNCELE ve analiz et.
-                Ürün hakkında internetteki tüketici yorumlarına, şikayetlere ve içerik analizlerine dair genel bilinen gerçekleri özetle.
+                Google Arama (Google Search) özelliğini KULLANARAK bu ürün hakkında internetteki tüketici yorumlarına, şikayetlere ve içerik analizlerine bak.
                 Görevler:
                 - "İçindekiler" listesini tarayarak temel bileşenleri bul.
                 - E-kodlu maddeleri tespit et, isimlerini ve ne işe yaradıklarını (örn: "E621 - Lezzet artırıcı") tek cümleyle yaz.
                 - Alerjen olup olmadığını kontrol et (Süt, fındık, glüten vb.).
                 - Şeker ve tuz seviyesini kontrol et (Yüksek/Orta/Düşük).
                 - Sağlıklı tüketim için kısa öneri ver.
-                - İnternetteki tüketici yorumlarını genel olarak özetle.
+                - İnternetteki kullanıcı yorumlarını özetle.
                 Kurallar:
                 - Sadece Türkçe yanıt ver.
                 - Teknik terim kullanma, günlük dille açıkla.
@@ -631,6 +631,7 @@
                             { inlineData: { mimeType: state.productScanData.mime, data: state.productScanData.base64 } }
                         ] 
                     }],
+                    tools: [{ google_search: {} }],
                     generationConfig: { 
                         responseMimeType: "application/json",
                         responseSchema: {
@@ -653,11 +654,7 @@
                     body: JSON.stringify(payload)
                 });
                 
-                if(!response.ok) {
-                    const errorText = await response.text();
-                    console.error("API Hatası (Ürün Analizi):", errorText);
-                    throw new Error("API Hatası");
-                }
+                if(!response.ok) throw new Error("API Hatası");
 
                 const data = await response.json();
                 const resultObj = JSON.parse(data.candidates[0].content.parts[0].text);
@@ -755,27 +752,18 @@
                     { type: "Sağlıklı Yağ", title: "Çiğ Badem", portion: "30g", calories: 180, desc: "Omega-3 içerir.", alt: "Ceviz", protein: 4 }
                 ];
 
-                const prompt = `Kullanıcı ${state.profile.weight}kg, hedefi ${state.profile.goalWeight}kg. Diyet tarzı: ${state.profile.dietStyle}. 4 kategoride porsiyon önerisi yap. SADECE JSON. format: type, title, portion, calories, desc, alt, protein.`;
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" }})
-                });
-                
-                if(!response.ok) {
-                    const errorText = await response.text();
-                    console.error("API Hatası (Akıllı Menü):", errorText);
-                    throw new Error("API Hatası");
+                if(apiKey) {
+                    const prompt = `Kullanıcı ${state.profile.weight}kg, hedefi ${state.profile.goalWeight}kg. Diyet tarzı: ${state.profile.dietStyle}. 4 kategoride porsiyon önerisi yap. SADECE JSON. format: type, title, portion, calories, desc, alt, protein.`;
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" }})
+                    });
+                    const data = await response.json();
+                    const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+                    if(Array.isArray(parsed) && parsed.length > 0) mockData = parsed;
                 }
-                
-                const data = await response.json();
-                const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
-                if(Array.isArray(parsed) && parsed.length > 0) mockData = parsed;
-                
                 state.smartMenu = mockData; renderUI(); showToast("Size özel porsiyon menüsü oluşturuldu.");
-            } catch (error) { 
-                console.error("Akıllı Menü Hatası:", error);
-                state.smartMenu = mockData; renderUI(); 
-            }
+            } catch (error) { state.smartMenu = mockData; renderUI(); }
         }
 
         function consumeSmartItem(index) {
@@ -862,7 +850,7 @@
             lucide.createIcons();
 
             try {
-                if(!state.scanData.base64) {
+                if(!apiKey || !state.scanData.base64) {
                     showToast("Lütfen önce bir fotoğraf seçin.");
                     btn.innerText = 'Analizi Başlat';
                     btn.disabled = false;
@@ -879,11 +867,7 @@
                     })
                 });
                 
-                if(!response.ok) {
-                    const errorText = await response.text();
-                    console.error("API Hatası (Yemek Analizi):", errorText);
-                    throw new Error("API Hatası");
-                }
+                if(!response.ok) throw new Error("API Hatası");
                 
                 const data = await response.json();
                 const mockResult = JSON.parse(data.candidates[0].content.parts[0].text);
